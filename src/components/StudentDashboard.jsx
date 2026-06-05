@@ -173,7 +173,7 @@ export default function StudentDashboard({ user }) {
       };
     });
 
-    const payload = {
+    return {
       institution: college,
       studentCgpa: parseFloat(cgpa),
       studentUid: user.uid,
@@ -183,8 +183,6 @@ export default function StudentDashboard({ user }) {
       timestamp: new Date().toISOString(),
       behavioralMetrics: trackingMetrics,
     };
-    console.log("📡 Submitting payload to Firebase:", payload);
-    return payload;
   };
 
   const forceAutoSubmission = async () => {
