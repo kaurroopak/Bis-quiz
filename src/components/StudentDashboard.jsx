@@ -41,6 +41,174 @@ export default function StudentDashboard({ user }) {
   const countdownTimer = useRef(null);
   const focusTimer = useRef(null);
 
+  // 🔽 PRODUCTION-GRADE ANTI-CHEAT LOCKDOWN ENGINE 🔽
+  const [violationCount, setViolationCount] = useState(0);
+  const [showWarning, setShowWarning] = useState(false);
+
+  // Browser-compliant Fullscreen Activator
+  const enterFullscreen = () => {
+    const element = document.documentElement;
+    if (element.requestFullscreen) element.requestFullscreen();
+    else if (element.mozRequestFullScreen) element.mozRequestFullScreen();
+    else if (element.webkitRequestFullscreen) element.webkitRequestFullscreen();
+    else if (element.msRequestFullscreen) element.msRequestFullscreen();
+  };
+
+  // Automated Trigger: Fires the moment onboarding finishes
+  useEffect(() => {
+    if (onboarded && !completed) {
+      const timer = setTimeout(() => enterFullscreen(), 150);
+      return () => clearTimeout(timer);
+    }
+  }, [onboarded, completed]);
+
+  // High-Frequency Background Event Guard (Detects focus loss, resizing, minimized frames)
+  useEffect(() => {
+    if (!onboarded || completed) return;
+
+    const enforceSecurityLock = () => {
+      const isNotFullscreen =
+        !document.fullscreenElement &&
+        !document.webkitFullscreenElement &&
+        !document.mozFullScreenElement &&
+        !document.msFullscreenElement;
+
+      if (document.hidden || isNotFullscreen) {
+        setShowWarning(true);
+      }
+    };
+
+    const aggressivePoller = setInterval(enforceSecurityLock, 200);
+    window.addEventListener("blur", enforceSecurityLock);
+    document.addEventListener("visibilitychange", enforceSecurityLock);
+    document.addEventListener("fullscreenchange", enforceSecurityLock);
+
+    return () => {
+      clearInterval(aggressivePoller);
+      window.removeEventListener("blur", enforceSecurityLock);
+      document.removeEventListener("visibilitychange", enforceSecurityLock);
+      document.removeEventListener("fullscreenchange", enforceSecurityLock);
+    };
+  }, [onboarded, completed]);
+
+  // Safely increment violation count state when the warning screen triggers
+  useEffect(() => {
+    if (showWarning) {
+      setViolationCount((prev) => prev + 1);
+    }
+  }, [showWarning]);
+
+  // Automated Cutoff Watcher: Runs outside the render thread to ensure non-blocking UI switching
+  useEffect(() => {
+    if (violationCount >= 3 && !completed) {
+      const executeAutomaticTermination = async () => {
+        alert(
+          "Exam permanently terminated! You have exceeded the maximum allowed window violations (3/3). Your progress has been automatically saved.",
+        );
+
+        // Compile and sync the student data payload vector up to this exact moment
+        const payload = compileSubmissionPayload(timeLeft);
+        try {
+          await addDoc(collection(db, "quiz_attempts"), payload);
+        } catch (err) {
+          console.error(
+            "Auto-submission cloud pipeline log failure:",
+            err.message,
+          );
+        }
+
+        // Close overlay and update completion state to route to the native success layout
+        setShowWarning(false);
+        setCompleted(true);
+
+        // Clean up full screen restrictions
+        if (document.exitFullscreen) {
+          document.exitFullscreen().catch(() => {});
+        }
+      };
+
+      executeAutomaticTermination();
+    }
+  }, [violationCount, completed]);
+
+  // Handle Resuming the Assessment (Only works for strikes 1 and 2)
+  const handleResumeTest = () => {
+    if (violationCount < 3) {
+      setShowWarning(false);
+      enterFullscreen();
+    }
+  };
+
+  // 🔒 BULLETPROOF SELECTION, COPY-PASTE & SHORTCUT HARDENING 🔒
+  useEffect(() => {
+    if (!onboarded || completed) return;
+
+    // Inject engine-level CSS layout rules directly into document header to break text highlights
+    const globalStyleBlock = document.createElement("style");
+    globalStyleBlock.id = "anti-copy-exam-shield";
+    globalStyleBlock.innerHTML = `
+      * {
+        -webkit-user-select: none !important;
+        -moz-user-select: none !important;
+        -ms-user-select: none !important;
+        user-select: none !important;
+      }
+      input, textarea {
+        -webkit-user-select: text !important;
+        -moz-user-select: text !important;
+        -ms-user-select: text !important;
+        user-select: text !important;
+      }
+    `;
+    document.head.appendChild(globalStyleBlock);
+
+    const blockEvent = (e) => e.preventDefault();
+
+    const blockKeyCombinations = (e) => {
+      // Intercept and break PrintScreen utility operations
+      if (e.key === "PrintScreen") {
+        navigator.clipboard.writeText("Protected Document Vector");
+        alert("Screenshots and display captures are strictly prohibited.");
+        e.preventDefault();
+      }
+      // Intercept standard extraction pipelines: Ctrl+P, Ctrl+U, Ctrl+Shift+I/C/J
+      if (
+        e.ctrlKey &&
+        (e.key === "p" ||
+          e.key === "P" ||
+          e.key === "u" ||
+          e.key === "U" ||
+          (e.shiftKey && (e.key === "I" || e.key === "C" || e.key === "J")))
+      ) {
+        e.preventDefault();
+      }
+    };
+
+    // Document Scope Event Overrides
+    document.addEventListener("copy", blockEvent);
+    document.addEventListener("cut", blockEvent);
+    document.addEventListener("paste", blockEvent);
+    document.addEventListener("contextmenu", blockEvent); // Completely neutralizes right clicks
+    document.addEventListener("selectstart", blockEvent); // Completely locks down cursor select highlights
+    document.addEventListener("dragstart", blockEvent); // Completely stops mouse image dragging
+    window.addEventListener("keydown", blockKeyCombinations);
+
+    return () => {
+      // Discard constraints when component unmounts or completes
+      const styleTag = document.getElementById("anti-copy-exam-shield");
+      if (styleTag) styleTag.remove();
+
+      document.removeEventListener("copy", blockEvent);
+      document.removeEventListener("cut", blockEvent);
+      document.removeEventListener("paste", blockEvent);
+      document.removeEventListener("contextmenu", blockEvent);
+      document.removeEventListener("selectstart", blockEvent);
+      document.removeEventListener("dragstart", blockEvent);
+      window.removeEventListener("keydown", blockKeyCombinations);
+    };
+  }, [onboarded, completed]);
+  // 🔼 END OF PRODUCTION-GRADE ANTI-CHEAT ENGINE 🔼
+
   useEffect(() => {
     initializeExamConfig();
   }, []);
@@ -116,7 +284,6 @@ export default function StudentDashboard({ user }) {
     });
   };
 
-  // CORRECTED: Hardened against structural updates by routing strict IDs
   const toggleReviewFlag = (questionId) => {
     if (!questionId) return;
 
@@ -166,7 +333,9 @@ export default function StudentDashboard({ user }) {
         finalSelectedOption: String(selected),
         timeSpent: Number(timeSpentMapRef.current[q.id] || 0),
         optionChanges: Number(optionChangesRef.current[q.id] || 0),
-        markedForReview: Boolean(reviews[q.id] || (reviewTimesMapRef.current[q.id] || 0) > 0),
+        markedForReview: Boolean(
+          reviews[q.id] || (reviewTimesMapRef.current[q.id] || 0) > 0,
+        ),
         reviewClickCount: Number(reviewTimesMapRef.current[q.id] || 0),
         confidenceRating: Number(confidenceRef.current[q.id] || 0),
         isCorrect: Boolean(isCorrect),
@@ -206,7 +375,7 @@ export default function StudentDashboard({ user }) {
         <div className="w-full max-w-md bg-white border border-slate-200 rounded-xl p-6 space-y-5 shadow-sm">
           <div className="flex items-center gap-2.5 border-b border-slate-100 pb-3 text-slate-800 text-sm font-bold tracking-wide uppercase">
             <GraduationCap className="w-5 h-5 text-blue-600" /> Candidate
-            Verification Node
+            Verification
           </div>
           <form onSubmit={handleOnboardSubmit} className="space-y-4">
             <div>
@@ -243,7 +412,7 @@ export default function StudentDashboard({ user }) {
                 type="submit"
                 className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-lg text-xs tracking-wider transition uppercase shadow-sm"
               >
-                Initialize Secure Test Deployment
+                Start Test
               </button>
               <button
                 type="button"
@@ -261,22 +430,22 @@ export default function StudentDashboard({ user }) {
 
   if (completed) {
     return (
-      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 text-center">
+      <div className="min-h-screen bg-slate-50 flex items-center justify-center p-4 text-center select-none">
         <div className="max-w-md bg-white border border-slate-200 rounded-xl p-8 space-y-4 shadow-sm">
           <Trophy className="w-12 h-12 text-emerald-500 mx-auto" />
           <h2 className="text-base font-bold text-slate-800 uppercase tracking-wide">
-            Test Portfolio Locked & Saved
+            Test Submitted Successfully.
           </h2>
           <p className="text-xs text-slate-500 leading-relaxed font-medium">
-            Your response configuration vector and behavioral data maps have
-            been written to the firestore cluster cloud core.
+            Your answers and test progress have been securely saved. You may now
+            safely log out and close this window.
           </p>
           <div className="pt-2">
             <button
               onClick={() => auth.signOut()}
               className="bg-slate-800 hover:bg-slate-900 text-white text-xs px-5 py-2 rounded-lg transition font-bold uppercase tracking-wider shadow-sm"
             >
-              Terminate Terminal Connection
+              Log Out & Exit Test
             </button>
           </div>
         </div>
@@ -291,11 +460,19 @@ export default function StudentDashboard({ user }) {
   };
 
   const missingConfidenceCount = questions.filter(
-    (q) => answers[q.id] && !confidence[q.id]
+    (q) => answers[q.id] && !confidence[q.id],
   ).length;
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-600 font-sans text-xs flex flex-col md:flex-row">
+    <div
+      className="min-h-screen bg-slate-50 text-slate-600 font-sans text-xs flex flex-col md:flex-row select-none"
+      onCopy={(e) => e.preventDefault()}
+      onCut={(e) => e.preventDefault()}
+      onPaste={(e) => e.preventDefault()}
+      onContextMenu={(e) => e.preventDefault()}
+      onSelectStart={(e) => e.preventDefault()}
+      onDragStart={(e) => e.preventDefault()}
+    >
       <div className="flex-1 p-6 space-y-6 flex flex-col justify-between">
         <div className="space-y-5">
           <div className="bg-white border border-slate-200 rounded-xl p-5 relative shadow-sm">
@@ -331,7 +508,9 @@ export default function StudentDashboard({ user }) {
           </div>
 
           {answers[activeQuestion.id] && (
-            <div className={`bg-white border p-4 rounded-xl space-y-2.5 shadow-sm transition-all duration-300 ${!confidence[activeQuestion.id] ? "border-rose-300 bg-rose-50/10" : "border-slate-200"}`}>
+            <div
+              className={`bg-white border p-4 rounded-xl space-y-2.5 shadow-sm transition-all duration-300 ${!confidence[activeQuestion.id] ? "border-rose-300 bg-rose-50/10" : "border-slate-200"}`}
+            >
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5 text-[10px] uppercase font-bold tracking-wider text-slate-500">
                   <Gauge className="w-3.5 h-3.5 text-blue-600" /> Response
@@ -474,14 +653,17 @@ export default function StudentDashboard({ user }) {
 
         {missingConfidenceCount > 0 && (
           <div className="text-rose-600 font-bold text-center text-[10px] mt-4 uppercase animate-pulse bg-rose-50 border border-rose-200/50 p-2.5 rounded-xl">
-            ⚠️ Mark confidence on all answered questions to submit ({missingConfidenceCount} remaining)
+            ⚠️ Mark confidence on all answered questions to submit (
+            {missingConfidenceCount} remaining)
           </div>
         )}
         <button
           type="button"
           onClick={() => {
             if (missingConfidenceCount > 0) {
-              alert(`Please mark your confidence level for all answered questions first (${missingConfidenceCount} remaining).`);
+              alert(
+                `Please mark your confidence level for all answered questions first (${missingConfidenceCount} remaining).`,
+              );
               return;
             }
             syncActiveTelemetry();
@@ -498,7 +680,6 @@ export default function StudentDashboard({ user }) {
           questions={questions}
           answers={answers}
           reviews={reviews}
-          // CORRECTED: Spreads the reference out as a clean, shallow object copy clone
           reviewTimesMap={{ ...reviewTimesMapRef.current }}
           visited={visited}
           onClose={() => setIsSubmitModalOpen(false)}
@@ -506,7 +687,6 @@ export default function StudentDashboard({ user }) {
             if (word !== "SUBMIT") return;
 
             const payload = compileSubmissionPayload(timeLeft);
-
             try {
               await addDoc(collection(db, "quiz_attempts"), payload);
               setCompleted(true);
@@ -517,6 +697,60 @@ export default function StudentDashboard({ user }) {
           }}
         />
       )}
+
+      {/* 🔽 OPAQUE LOCKDOWN WALL FOR STRIKES 1 & 2 🔽 */}
+      {showWarning && violationCount < 3 && (
+        <div className="fixed inset-0 bg-slate-950 flex items-center justify-center z-50 p-4 select-none">
+          <div className="bg-white rounded-2xl p-8 max-w-md w-full text-center shadow-2xl border-t-4 border-amber-500 animate-in fade-in zoom-in-95 duration-150">
+            <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <svg
+                className="w-7 h-7 text-amber-600"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"
+                />
+              </svg>
+            </div>
+
+            <h3 className="text-base font-bold text-slate-800 uppercase tracking-wide">
+              Security Focus Alert
+            </h3>
+            <p className="text-xs text-slate-500 mt-2 leading-relaxed">
+              You navigated away from the exam or left fullscreen view. All
+              background processes and focus variations are monitored.
+            </p>
+
+            <div className="my-4 p-3 rounded-xl border flex justify-between items-center text-left bg-amber-50 border-amber-100">
+              <div>
+                <div className="text-[9px] font-bold uppercase tracking-wider text-amber-700">
+                  System Integrity Telemetry:
+                </div>
+                <div className="text-xs text-slate-700 font-medium mt-0.5">
+                  Focus Violation Record
+                </div>
+              </div>
+              <div className="text-xl font-mono font-bold px-3 py-1 rounded-lg border shadow-sm text-amber-600 bg-white border-amber-200">
+                {violationCount} / 3
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={handleResumeTest}
+              className="w-full text-white bg-amber-500 hover:bg-amber-600 font-bold py-2.5 rounded-xl text-xs tracking-wider transition uppercase shadow-md"
+            >
+              Re-engage Fullscreen & Resume
+            </button>
+          </div>
+        </div>
+      )}
+      {/* 🔼 END OF OPAQUE LOCKDOWN WALL 🔼 */}
     </div>
   );
 }

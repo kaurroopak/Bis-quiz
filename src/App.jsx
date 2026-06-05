@@ -41,9 +41,7 @@ export default function App() {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center font-sans text-slate-700 gap-3">
         <div className="w-10 h-10 border-4 border-slate-200 border-t-blue-600 rounded-full animate-spin" />
-        <div className="text-xs font-semibold tracking-wider text-slate-500 animate-pulse">
-          CONNECTING SECURE DATABASE MODULES...
-        </div>
+        <div className="text-xs font-semibold tracking-wider text-slate-500 animate-pulse"></div>
       </div>
     );
   }
@@ -54,7 +52,6 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center">
-      <ShieldAlert className="w-14 h-14 text-rose-500 mb-2" />
       <h1 className="text-lg font-bold text-slate-800 tracking-wide uppercase">
         Routing Failure
       </h1>

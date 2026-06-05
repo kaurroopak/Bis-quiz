@@ -1,3 +1,6 @@
+import institutionLogo from "../assets/thapar_logo.png";
+import bisLogo from "../assets/bis_logo.png";
+
 import React, { useState } from "react";
 import {
   signInWithEmailAndPassword,
@@ -48,15 +51,20 @@ export default function AuthPortal() {
     <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white border border-slate-200 rounded-xl p-8 shadow-sm">
         <div className="flex flex-col items-center mb-6">
-          <div className="w-12 h-12 bg-blue-50 border border-blue-200 rounded-lg flex items-center justify-center text-blue-600 mb-3">
-            <Shield className="w-6 h-6" />
+          {/* --- START OF LOGO CONTAINER (TAILWIND EDITION) --- */}
+          <div className="flex justify-center items-center gap-6 mt-4 mb-2">
+            <img
+              src={institutionLogo}
+              alt="Institution Logo"
+              className="h-11.1 max-w-[110px] object-contain"
+            />
+            <img
+              src={bisLogo}
+              alt="BIS Logo"
+              className="h-12.1 max-w-[110px] object-contain"
+            />
           </div>
-          <h2 className="text-lg font-bold tracking-tight text-slate-800 uppercase">
-            Assessment Hub Entry
-          </h2>
-          <p className="text-xs text-slate-500 mt-1 font-medium">
-            VERIFIED PORTAL LOGIN SYSTEM
-          </p>
+          {/* --- END OF LOGO CONTAINER --- */}
         </div>
 
         {error && (
