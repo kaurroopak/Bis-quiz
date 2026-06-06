@@ -1,72 +1,203 @@
-import { initializeApp } from "firebase/app";
-import { getFirestore, collection, getDocs } from "firebase/firestore";
-import * as XLSX from "xlsx";
-import * as fs from "fs";
+import admin from "firebase-admin";
+import ExcelJS from "exceljs";
+import path from "path";
+import { fileURLToPath } from "url";
+import { createRequire } from "module";
 
-// 1. YOUR FIREBASE KEYS (Get these from your project's existing firebase configuration file)
-const firebaseConfig = {
-  apiKey: "YOUR_ACTUAL_API_KEY_HERE",
-  authDomain: "academic-telemetry-hub.firebaseapp.com",
-  projectId: "academic-telemetry-hub",
-  storageBucket: "academic-telemetry-hub.appspot.com",
-  messagingSenderId: "YOUR_SENDER_ID_HERE",
-  appId: "YOUR_APP_ID_HERE",
-};
+// Recreate __dirname for ES Modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-// 2. Initialize connection
-const app = initializeApp(firebaseConfig);
-const db = getFirestore(app);
+// Import JSON file in ES Module environment safely
+const require = createRequire(import.meta.url);
+const serviceAccount = require("./serviceAccountKey.json");
 
-async function runExport() {
-  console.log("⏳ Connecting to Firebase 'quiz_attempts' collection...");
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount),
+  });
+}
+
+const db = admin.firestore();
+
+async function generateMasterMLDataset() {
   try {
-    const querySnapshot = await getDocs(collection(db, "quiz_attempts"));
+    // Initialize Master Excel Workbook
+    const workbook = new ExcelJS.Workbook();
 
-    // 3. Map your fields exactly matching the database schema from your screenshot
-    let rows = querySnapshot.docs.map((doc) => {
+    // ==========================================
+    // SHEET 1: QUIZ ATTEMPTS (BEHAVIORAL DATA)
+    // ==========================================
+    console.log("🔄 Fetching documents from quiz_attempts...");
+    const quizSnapshot = await db.collection("quiz_attempts").get();
+
+    const wsAttempts = workbook.addWorksheet("ML_Behavioral_Data");
+    wsAttempts.columns = [
+      { header: "attempt_id", key: "attempt_id", width: 25 },
+      { header: "student_uid", key: "student_uid", width: 28 },
+      { header: "student_cgpa", key: "student_cgpa", width: 15 },
+      { header: "institution", key: "institution", width: 30 },
+      { header: "correct_percentage", key: "correct_percentage", width: 18 },
+      {
+        header: "time_remaining_at_submission",
+        key: "time_remaining_at_submission",
+        width: 25,
+      },
+      { header: "timestamp", key: "timestamp", width: 25 },
+
+      { header: "question_id", key: "question_id", width: 25 },
+      { header: "confidence_rating", key: "confidence_rating", width: 18 },
+      {
+        header: "final_selected_option",
+        key: "final_selected_option",
+        width: 35,
+      },
+      { header: "is_correct", key: "is_correct", width: 12 },
+      { header: "marked_for_review", key: "marked_for_review", width: 18 },
+      { header: "option_changes", key: "option_changes", width: 15 },
+      { header: "review_click_count", key: "review_click_count", width: 18 },
+      { header: "time_spent", key: "time_spent", width: 12 },
+    ];
+    wsAttempts.getRow(1).font = { bold: true };
+
+    let attemptsCount = 0;
+    quizSnapshot.forEach((doc) => {
+      const attemptId = doc.id;
       const data = doc.data();
-      return {
-        "Student UID": data.studentUid || "Anonymous Student",
-        "Selected Option / SQL Query": data.finalSelectedOption || "N/A",
-        "Confidence Rating": data.confidenceRating || 0,
-        "Is Correct?": data.isCorrect ? "True" : "False",
-        "Time Spent (sec)": data.timeSpent || 0,
-        "Option Changes": data.optionChanges || 0,
-        "Marked For Review": data.markedForReview ? "True" : "False",
-        "Review Click Count": data.reviewClickCount || 0,
-        Institution: data.institution || "N/A",
-        "Student CGPA": data.studentCgpa || 0,
-        "Firebase Document Reference ID": doc.id,
-      };
+
+      const studentUid = data.studentUid || "Unknown";
+      const studentCgpa =
+        data.studentCgpa !== undefined ? data.studentCgpa : null;
+      const institution = data.institution || "Unknown";
+      const correctPercentage =
+        data.correctPercentage !== undefined ? data.correctPercentage : 0;
+      const timeRemaining =
+        data.timeRemainingAtSubmission !== undefined
+          ? data.timeRemainingAtSubmission
+          : 0;
+      const timestamp = data.timestamp || "";
+
+      const behavioralMetrics = data.behavioralMetrics;
+
+      if (behavioralMetrics && typeof behavioralMetrics === "object") {
+        Object.keys(behavioralMetrics).forEach((questionId) => {
+          const qDetails = behavioralMetrics[questionId];
+
+          wsAttempts.addRow({
+            attempt_id: attemptId,
+            student_uid: studentUid,
+            student_cgpa: studentCgpa,
+            institution: institution,
+            correct_percentage: correctPercentage,
+            time_remaining_at_submission: timeRemaining,
+            timestamp: timestamp,
+
+            question_id: questionId,
+            confidence_rating: qDetails.confidenceRating || 0,
+            final_selected_option: qDetails.finalSelectedOption || "None",
+            is_correct: qDetails.isCorrect === true ? 1 : 0,
+            marked_for_review: qDetails.markedForReview === true ? 1 : 0,
+            option_changes: qDetails.optionChanges || 0,
+            review_click_count: qDetails.reviewClickCount || 0,
+            time_spent: qDetails.timeSpent || 0,
+          });
+          attemptsCount++;
+        });
+      }
     });
 
-    if (rows.length === 0) {
-      console.log("❌ No rows found in the collection database.");
-      return;
-    }
+    // ==========================================
+    // SHEET 2: USERS PROFILE DETAILS
+    // ==========================================
+    console.log("🔄 Fetching documents from users...");
+    const usersSnapshot = await db.collection("users").get();
 
-    // 4. Automatically group data so a single student's multiple questions sit together
-    rows.sort((a, b) => a["Student UID"].localeCompare(b["Student UID"]));
+    const wsUsers = workbook.addWorksheet("Student_Profiles");
+    wsUsers.columns = [
+      { header: "user_doc_id", key: "user_doc_id", width: 28 },
+      { header: "student_uid", key: "student_uid", width: 28 },
+      { header: "email", key: "email", width: 35 },
+      { header: "role", key: "role", width: 15 },
+      { header: "created_at", key: "created_at", width: 25 },
+    ];
+    wsUsers.getRow(1).font = { bold: true };
 
-    // 5. Convert matrix into standard Excel workbook layers
-    const worksheet = XLSX.utils.json_to_sheet(rows);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Telemetry Data");
-
-    // 6. Write file locally into your VS Code project file folder directory
-    const excelBuffer = XLSX.write(workbook, {
-      bookType: "xlsx",
-      type: "buffer",
+    let usersCount = 0;
+    usersSnapshot.forEach((doc) => {
+      const userData = doc.data();
+      wsUsers.addRow({
+        user_doc_id: doc.id,
+        student_uid: userData.uid || doc.id,
+        email: userData.email || "N/A",
+        role: userData.role || "student",
+        created_at: userData.createdAt || "",
+      });
+      usersCount++;
     });
-    fs.writeFileSync("Quiz_Attempts_Report.xlsx", excelBuffer);
 
+    // ==========================================
+    // SHEET 3: QUESTION BANK & NLP METRICS
+    // ==========================================
+    console.log("🔄 Fetching documents from questions...");
+    const questionsSnapshot = await db.collection("questions").get();
+
+    const wsQuestions = workbook.addWorksheet("Question_Bank");
+    wsQuestions.columns = [
+      { header: "question_id", key: "question_id", width: 25 },
+      { header: "type", key: "type", width: 15 },
+      { header: "difficulty", key: "difficulty", width: 12 },
+      { header: "blooms_level", key: "blooms_level", width: 18 },
+      { header: "flesch_ease", key: "flesch_ease", width: 12 },
+      { header: "gunning_fog_index", key: "gunning_fog_index", width: 18 },
+      { header: "lexical_diversity", key: "lexical_diversity", width: 18 },
+      {
+        header: "syntactic_complexity",
+        key: "syntactic_complexity",
+        width: 20,
+      },
+      { header: "correct_answer", key: "correct_answer", width: 35 },
+      { header: "question_text", key: "question_text", width: 50 },
+    ];
+    wsQuestions.getRow(1).font = { bold: true };
+
+    let questionsCount = 0;
+    questionsSnapshot.forEach((doc) => {
+      const qData = doc.data();
+
+      wsQuestions.addRow({
+        question_id: doc.id,
+        type: qData.type || "N/A",
+        difficulty: qData.difficulty || "N/A",
+        blooms_level: qData.bloomsLevel || "N/A",
+        flesch_ease: qData.fleschEase !== undefined ? qData.fleschEase : null,
+        gunning_fog_index:
+          qData.gunningFogIndex !== undefined ? qData.gunningFogIndex : null,
+        lexical_diversity:
+          qData.lexicalDiversity !== undefined ? qData.lexicalDiversity : null,
+        syntactic_complexity: qData.syntacticComplexity || "N/A",
+        correct_answer: qData.correctAnswer || "N/A",
+        question_text: qData.text || "N/A",
+      });
+      questionsCount++;
+    });
+
+    // Save final combined workbook
+    const outputPath = path.join(__dirname, "Quiz_Attempts_Report.xlsx");
+    await workbook.xlsx.writeFile(outputPath);
+
+    console.log(`\n============== EXPORT SUMMARY ==============`);
+    console.log(`✅ Sheet 1 (ML_Behavioral_Data) : ${attemptsCount} rows.`);
+    console.log(`✅ Sheet 2 (Student_Profiles)  : ${usersCount} profiles.`);
     console.log(
-      "\x1b[32m%s\x1b[0m",
-      "\n✅ SUCCESS! 'Quiz_Attempts_Report.xlsx' has been created in your folder directory!\n",
+      `✅ Sheet 3 (Question_Bank)     : ${questionsCount} questions parsed.`,
     );
+    console.log(`📊 Master dataset updated in: ${outputPath}`);
+    console.log(`============================================`);
   } catch (error) {
-    console.error("❌ Database download failed:", error);
+    console.error("❌ Error executing 3-sheet master compiler:", error);
+  } finally {
+    process.exit();
   }
 }
 
-runExport();
+generateMasterMLDataset();
