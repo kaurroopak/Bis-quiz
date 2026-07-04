@@ -174,6 +174,15 @@ export default function StudentDashboard({ user, onLogout }) {
     return () => { clearInterval(countdownTimer.current); clearInterval(focusTimer.current); };
   }, [onboarded, currentIdx, questions, completed]);
 
+  const shuffleArray = (arr) => {
+    const shuffled = [...arr];
+    for (let i = shuffled.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+    }
+    return shuffled;
+  };
+
   const initializeExamConfig = async () => {
     try {
       const settingsData = await apiGetSettings();
@@ -182,8 +191,12 @@ export default function StudentDashboard({ user, onLogout }) {
     } catch (err) { console.error("Settings error:", err); }
     try {
       const items = await apiGetQuestions();
-      setQuestions(items);
-      if (items.length > 0) setVisited({ [items[0].id]: true });
+      const shuffledItems = items.map((q) => ({
+        ...q,
+        options: shuffleArray(q.options),
+      }));
+      setQuestions(shuffledItems);
+      if (shuffledItems.length > 0) setVisited({ [shuffledItems[0].id]: true });
     } catch (err) { console.error("Questions error:", err); }
   };
 
