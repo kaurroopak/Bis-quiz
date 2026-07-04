@@ -15,6 +15,7 @@ import {
 export default function StudentDashboard({ user, onLogout }) {
   const [college, setCollege] = useState("");
   const [cgpa, setCgpa] = useState("");
+  const [rollNumber, setRollNumber] = useState("");
   const [onboarded, setOnboarded] = useState(false);
 
   const [config, setConfig] = useState({ totalTimeAllowed: 30 });
@@ -288,6 +289,7 @@ export default function StudentDashboard({ user, onLogout }) {
     return {
       institution: college,
       studentCgpa: parseFloat(cgpa),
+      rollNumber: rollNumber.trim(),
       correctPercentage: Math.round((correctCount / questions.length) * 10000) / 100,
       timeRemainingAtSubmission: Number(timeRemaining),
       behavioralMetrics: trackingMetrics,
@@ -306,7 +308,7 @@ export default function StudentDashboard({ user, onLogout }) {
 
   const handleOnboardSubmit = (e) => {
     e.preventDefault();
-    if (college.trim() && cgpa) setOnboarded(true);
+    if (college.trim() && cgpa && rollNumber.trim()) setOnboarded(true);
   };
 
   if (!onboarded) {
@@ -320,6 +322,10 @@ export default function StudentDashboard({ user, onLogout }) {
             <div>
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Full Institution Affiliation</label>
               <input type="text" required value={college} onChange={(e) => setCollege(e.target.value)} className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-lg p-2.5 text-xs text-slate-800 outline-none transition" placeholder="e.g., IIT Madras" />
+            </div>
+            <div>
+              <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Roll Number</label>
+              <input type="text" required value={rollNumber} onChange={(e) => setRollNumber(e.target.value)} className="w-full bg-slate-50 border border-slate-200 focus:border-blue-500 focus:bg-white rounded-lg p-2.5 text-xs text-slate-800 outline-none transition" placeholder="e.g., 102203012" />
             </div>
             <div>
               <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1">Current Cumulative CGPA (0.00 - 10.00)</label>

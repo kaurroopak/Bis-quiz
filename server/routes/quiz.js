@@ -29,13 +29,14 @@ function calculateCBMScore(behavioralMetrics) {
 // Submit a quiz attempt (student)
 router.post("/submit", authenticate, async (req, res) => {
   try {
-    const { institution, studentCgpa, correctPercentage, timeRemainingAtSubmission, behavioralMetrics } = req.body;
+    const { institution, rollNumber, studentCgpa, correctPercentage, timeRemainingAtSubmission, behavioralMetrics } = req.body;
 
     const { totalScore, maxPossible } = calculateCBMScore(behavioralMetrics || {});
 
     const attempt = await QuizAttempt.create({
       studentUid: req.user.uid,
       institution,
+      rollNumber,
       studentCgpa,
       correctPercentage,
       cbmScore: totalScore,
