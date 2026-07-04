@@ -32,6 +32,7 @@ export default function StudentDashboard({ user, onLogout }) {
   const activeSecsRef = useRef(0);
   const timeSpentMapRef = useRef({});
   const optionChangesRef = useRef({});
+  const clearCountRef = useRef({});
   const reviewTimesMapRef = useRef({});
   const confidenceRef = useRef({});
 
@@ -216,6 +217,16 @@ export default function StudentDashboard({ user, onLogout }) {
     });
   };
 
+  const clearChoice = () => {
+    const currentId = questions[currentIdx].id;
+    if (!answers[currentId]) return;
+    optionChangesRef.current[currentId] = (optionChangesRef.current[currentId] || 0) + 1;
+    clearCountRef.current[currentId] = (clearCountRef.current[currentId] || 0) + 1;
+    setAnswers((prev) => { const updated = { ...prev }; delete updated[currentId]; return updated; });
+    setConfidence((prev) => { const updated = { ...prev }; delete updated[currentId]; return updated; });
+    confidenceRef.current[currentId] = 0;
+  };
+
   const toggleReviewFlag = (questionId) => {
     if (!questionId) return;
     setReviews((prev) => ({ ...prev, [questionId]: !prev[questionId] }));
@@ -254,6 +265,7 @@ export default function StudentDashboard({ user, onLogout }) {
         finalSelectedOption: String(selected),
         timeSpent: Number(timeSpentMapRef.current[q.id] || 0),
         optionChanges: Number(optionChangesRef.current[q.id] || 0),
+        clearCount: Number(clearCountRef.current[q.id] || 0),
         markedForReview: Boolean(reviews[q.id] || (reviewTimesMapRef.current[q.id] || 0) > 0),
         reviewClickCount: Number(reviewTimesMapRef.current[q.id] || 0),
         confidenceRating: Number(confidenceRef.current[q.id] || 0),
@@ -351,6 +363,18 @@ export default function StudentDashboard({ user, onLogout }) {
               );
             })}
           </div>
+
+          {answers[activeQuestion.id] && (
+            <div className="flex justify-end">
+              <button
+                type="button"
+                onClick={clearChoice}
+                className="text-[10px] font-bold uppercase tracking-wider text-rose-500 hover:text-rose-700 border border-rose-200 hover:border-rose-400 bg-white hover:bg-rose-50 px-3 py-1.5 rounded-lg transition flex items-center gap-1.5"
+              >
+                ✕ Clear Choice
+              </button>
+            </div>
+          )}
 
           {answers[activeQuestion.id] && (
             <div className={`bg-white border p-4 rounded-xl space-y-2.5 shadow-sm transition-all duration-300 ${!confidence[activeQuestion.id] ? "border-rose-300 bg-rose-50/10" : "border-slate-200"}`}>
